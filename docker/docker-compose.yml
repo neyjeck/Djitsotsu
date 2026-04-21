@@ -26,18 +26,19 @@ services:
 
   cassandra:
     image: cassandra:4.1
-    container_name: djitsostu_cassandra
+    container_name: global_cassandra
     ports:
-      - "9042:9042"
+      - "${CASSANDRA_PORT}:9042"
     environment:
-      CASSANDRA_DC: "dc1"
-      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
-    networks:
-      - djitsostu_net
+      - CASSANDRA_USER=${CASSANDRA_USER}
+      - CASSANDRA_PASSWORD=${CASSANDRA_PASSWORD}
+    volumes:
+      - global_cassandra_data:/var/lib/cassandra
 
 volumes:
   postgres_data:
   redis_data:
+  global_cassandra_data:
 
 networks:
   djitsostu_net:
