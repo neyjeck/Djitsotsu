@@ -27,7 +27,7 @@ export class AuthController {
         userId: 0
       };
     } catch (e) {
-      return { status: 400, error: e.message, userId: 0 };
+      return { status: 400, error: (e as Error).message, userId: 0 };
     }
   }
 
@@ -43,7 +43,7 @@ export class AuthController {
         refreshToken: tokens.refreshToken,
       };
     } catch (e) {
-      return { status: 401, error: e.message, accessToken: '', refreshToken: '' };
+      return { status: 401, error: (e as Error).message, accessToken: '', refreshToken: '' };
     }
   }
 
@@ -69,10 +69,10 @@ export class AuthController {
         refreshToken: result.refreshToken 
       };
     } catch (e) {
-      this.logger.error(`Social Login Error: ${e.message}`);
+      this.logger.error(`Social Login Error: ${(e as Error).message}`);
       return { 
         status: 400, 
-        error: e.message, 
+        error: (e as Error).message, 
         accessToken: '', 
         refreshToken: '' 
       };
@@ -81,10 +81,12 @@ export class AuthController {
 
   @GrpcMethod(AUTH_SERVICE_NAME, 'Validate')
   async validate(data: ValidateRequest): Promise<ValidateResponse> {
+    this.logger.log(`gRPC received data for verification: ${JSON.stringify(data)}`);
     try {
       const result = await this.authService.validateToken(data.token);
       return { status: 200, error: '', userId: typeof result.id === 'string' ? parseInt(result.id) : result.id };
     } catch (e) {
+      this.logger.error(`Error validating token in auth-service: ${(e as Error).message}`);
       return { status: 401, error: 'Invalid token', userId: 0 };
     }
   }
@@ -100,7 +102,7 @@ export class AuthController {
         refreshToken: result.refreshToken,
       };
     } catch (e) {
-      return { status: 401, error: e.message, accessToken: '', refreshToken: '' };
+      return { status: 401, error: (e as Error).message, accessToken: '', refreshToken: '' };
     }
   }
 
@@ -116,7 +118,7 @@ export class AuthController {
       const result = await this.authService.sendOtp(data.identifier);
       return { success: result.success, message: result.message };
     } catch (e) {
-      return { success: false, message: e.message };
+      return { success: false, message: (e as Error).message };
     }
   }
 
@@ -137,7 +139,7 @@ export class AuthController {
         refreshToken: result.refreshToken,
       };
     } catch (e) {
-      return { status: 400, error: e.message, accessToken: '', refreshToken: '' };
+      return { status: 400, error: (e as Error).message, accessToken: '', refreshToken: '' };
     }
   }
 
@@ -150,10 +152,10 @@ export class AuthController {
         message: result.message || 'Code sent to email' 
       };
     } catch (e) {
-      this.logger.error(`Forgot Password Error: ${e.message}`);
+      this.logger.error(`Forgot Password Error: ${(e as Error).message}`);
       return { 
         success: false, 
-        message: e.message 
+        message: (e as Error).message 
       };
     }
   }
@@ -174,10 +176,10 @@ export class AuthController {
         refreshToken: result.refreshToken,
       };
     } catch (e) {
-      this.logger.error(`Reset Password Error: ${e.message}`);
+      this.logger.error(`Reset Password Error: ${(e as Error).message}`);
       return { 
         status: 400, 
-        error: e.message, 
+        error: (e as Error).message, 
         accessToken: '', 
         refreshToken: '' 
       };
