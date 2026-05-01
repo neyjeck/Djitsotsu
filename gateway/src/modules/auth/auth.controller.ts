@@ -1,27 +1,14 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Res, Req, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import type { Response, Request } from 'express';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto, ResetPasswordDto } from './dto/password-reset.dto';
-
-
+import { SendOtpRequest } from './dto/requests/send-otp.request';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
-
-  private setRefreshCookie(res: Response, token: string) {
-    res.cookie('refreshToken', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-  }
 
   @Post('register')
   @HttpCode(HttpStatus.OK)
@@ -33,105 +20,19 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.authService.login(dto);
-    if (result.refreshToken) {
-      this.setRefreshCookie(res, result.refreshToken);
-    }
-    return { accessToken: result.accessToken, status: result.status };
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login user' })
+  @ApiResponse({ status: 200, description: 'Login successful, returns tokens' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
   }
 
   @Post('send-otp')
-  @ApiOperation({ summary: 'Send OTP to email/phone' })
-  async sendOtp(@Body('identifier') identifier: string) {
-    return this.authService.sendOtp(identifier);
-}
-
-  @Post('verify-otp')
-  async verifyOtp(
-    @Body('identifier') identifier: string,
-    @Body('code') code: string,
-    @Res({ passthrough: true }) res: Response
-  ) {
-    const result = await this.authService.verifyOtp(identifier, code);
-    if (result.refreshToken) {
-      this.setRefreshCookie(res, result.refreshToken);
-    }
-    return { accessToken: result.accessToken, status: result.status };
-  }
-
-  @Post('refresh')
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const token = req.cookies['refreshToken'];
-    if (!token) throw new UnauthorizedException('No refresh token');
-
-    const result = await this.authService.refresh(token);
-    if (result.refreshToken) {
-      this.setRefreshCookie(res, result.refreshToken);
-    }
-    return { accessToken: result.accessToken };
-  }
-
-  @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const token = req.cookies['refreshToken'];
-    if (token) {
-      await this.authService.logout(token);
-    }
-    res.clearCookie('refreshToken');
-    return { success: true };
+  @ApiOperation({ summary: 'Send OTP (Placeholder)' })
+  @ApiBody({ schema: { type: 'object', properties: { identifier: { type: 'string', example: 'user@email.com' } } } })
+  async sendOtp(@Body() body: SendOtpRequest) {
+    return this.authService.sendOtp({ identifier: body.identifier });
   }
-
-  @Post('social-login')
-  @ApiOperation({ summary: 'Login or Register via Social Provider' })
-    async socialLogin(
-      @Body() dto: any,
-      @Res({ passthrough: true }) res: Response
-) {
-  const result = await this.authService.socialLogin(dto);
-
-  if (result.status !== 200) {
-    throw new BadRequestException(result.error);
-  }
-
-  if (result.refreshToken) {
-    res.cookie('refreshToken', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-  }
-
-  return { 
-    accessToken: result.accessToken,
-    status: result.status 
-  };
-}
-@Post('forgot-password')
-  @ApiOperation({ summary: 'Request password reset' })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto.email);
-  }
-
-  @Post('reset-password')
-  @ApiOperation({ summary: 'Reset password with OTP' })
-  async resetPassword(
-    @Body() dto: ResetPasswordDto,
-    @Res({ passthrough: true }) res: Response
-  ) {
-    const result = await this.authService.resetPassword(dto);
-    
-    if (result.refreshToken) {
-      this.setRefreshCookie(res, result.refreshToken);
-    }
-    
-    return { 
-      accessToken: result.accessToken, 
-      status: result.status 
-    };
-  }
-
 }

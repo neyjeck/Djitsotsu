@@ -9,14 +9,14 @@ import {
 import { lastValueFrom } from 'rxjs';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { SocialLoginDto } from './dto/social-login.dto';
-import { ForgotPasswordDto, ResetPasswordDto } from './dto/password-reset.dto';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
   private authService: AuthServiceClient;
 
-  constructor(@Inject(AUTH_SERVICE_NAME) private client: ClientGrpc) {}
+  constructor(
+    @Inject(AUTH_SERVICE_NAME) private client: ClientGrpc
+  ) {}
 
   onModuleInit() {
     this.authService = this.client.getService<AuthServiceClient>(AUTH_SERVICE_NAME);
@@ -33,44 +33,9 @@ export class AuthService implements OnModuleInit {
     return lastValueFrom(this.authService.login(data));
   }
   
-  async sendOtp(identifier: string) {
-    return lastValueFrom(this.authService.sendOtp({ identifier }));
+  async sendOtp(data: { identifier: string }) {
+      // return lastValueFrom(this.authService.register(data));
+      return { message: "OTP not implemented in proto yet" };
   }
 
-  async verifyOtp(identifier: string, code: string) {
-    return lastValueFrom(this.authService.verifyOtp({ identifier, code }));
-  }
-
-  async refresh(refreshToken: string) {
-    return lastValueFrom(this.authService.refresh({ refreshToken }));
-  }
-
-  async logout(refreshToken: string) {
-    return lastValueFrom(this.authService.logout({ refreshToken }));
-  }
-
-  async socialLogin(data: SocialLoginDto) {
-  return lastValueFrom(this.authService.socialLogin({
-    email: data.email,
-    firstName: data.firstName,
-    avatarUrl: data.avatarUrl ?? "",
-    provider: data.provider,
-    providerId: data.providerId,
-  }));
-}
-  async forgotPassword(email: string) {
-    return lastValueFrom(
-      this.authService.forgotPassword({ email })
-    );
-  }
-
-  async resetPassword(dto: ResetPasswordDto) {
-    return lastValueFrom(
-      this.authService.resetPassword({
-        email: dto.email,
-        code: dto.code,
-        newPassword: dto.newPassword,
-      })
-    );
-  }
 }
