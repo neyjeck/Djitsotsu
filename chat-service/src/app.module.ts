@@ -4,6 +4,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { join } from 'path';
 import { CassandraModule } from './cassandra/cassandra.module';
 import { ChatGateway } from './chat/chat.gateway';
+import { ChatService } from './chat/chat.service';
 
 @Module({
   imports: [
@@ -21,6 +22,6 @@ import { ChatGateway } from './chat/chat.gateway';
       },
     ]),
   ],
-  providers: [ChatGateway],
+  providers: [ChatGateway, ChatService],
 })
 export class AppModule {}

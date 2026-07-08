@@ -13,9 +13,9 @@ export class CassandraService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     const contactPoints = [this.configService.get<string>('CASSANDRA_CONTACT_POINTS') || '127.0.0.1'];
     const localDataCenter = this.configService.get<string>('CASSANDRA_LOCAL_DATACENTER')!;
-const username = this.configService.get<string>('CASSANDRA_USER')!;
-const password = this.configService.get<string>('CASSANDRA_PASSWORD')!;
-const keyspace = this.configService.get<string>('CASSANDRA_KEYSPACE')!;
+    const username = this.configService.get<string>('CASSANDRA_USER')!;
+    const password = this.configService.get<string>('CASSANDRA_PASSWORD')!;
+    const keyspace = this.configService.get<string>('CASSANDRA_KEYSPACE')!;
 
     this.client = new Client({
       contactPoints,
@@ -34,7 +34,10 @@ const keyspace = this.configService.get<string>('CASSANDRA_KEYSPACE')!;
       await this.createTables();
 
       this.mapper = new mapping.Mapper(this.client, {
-        models: { 'Message': { tables: ['messages'] } }
+        models: { 
+          'Message': { tables: ['messages'] },
+          'RoomMember': { tables: ['room_members'] } 
+        }
       });
       
     } catch (error) {
@@ -60,7 +63,7 @@ const keyspace = this.configService.get<string>('CASSANDRA_KEYSPACE')!;
   }
 
   private async createTables() {
-    const query = `
+    const createMessagesQuery = `
       CREATE TABLE IF NOT EXISTS messages (
         room_id text,
         created_at timestamp,
@@ -70,7 +73,18 @@ const keyspace = this.configService.get<string>('CASSANDRA_KEYSPACE')!;
         PRIMARY KEY ((room_id), created_at, message_id)
       ) WITH CLUSTERING ORDER BY (created_at DESC);
     `;
-    await this.client.execute(query);
+    await this.client.execute(createMessagesQuery);
+
+    const createRoomMembersQuery = `
+      CREATE TABLE IF NOT EXISTS room_members (
+        room_id text,
+        user_id text,
+        joined_at timestamp,
+        PRIMARY KEY (room_id, user_id)
+      );
+    `;
+    await this.client.execute(createRoomMembersQuery);
+
     this.logger.log('Cassandra tables are ready');
   }
 }
