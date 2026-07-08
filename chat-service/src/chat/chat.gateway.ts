@@ -1,10 +1,18 @@
-import { WebSocketGateway, WebSocketServer, SubscribeMessage, MessageBody, ConnectedSocket, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
+import { 
+  WebSocketGateway, 
+  WebSocketServer, 
+  SubscribeMessage, 
+  MessageBody, 
+  ConnectedSocket, 
+  OnGatewayConnection, 
+  OnGatewayDisconnect 
+} from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Inject, OnModuleInit } from '@nestjs/common';
+import { Inject, OnModuleInit, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { ClientGrpc } from '@nestjs/microservices';
 import { firstValueFrom, Observable } from 'rxjs';
-import { CassandraService } from '../cassandra/cassandra.service';
-import { types } from 'cassandra-driver';
+import { ChatService } from './chat.service';
+import { JoinRoomDto, SendMessageDto, GetMessagesDto } from './dto/chat.dto';
 
 interface AuthGrpcService {
   Validate(data: { token: string }): Observable<{ status: number; error: string; userId: string | number }>;
@@ -12,7 +20,7 @@ interface AuthGrpcService {
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: process.env.FRONTEND_URL || '*',
   },
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
@@ -23,7 +31,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   constructor(
     @Inject('AUTH_SERVICE') private client: ClientGrpc,
-    private cassandraService: CassandraService
+    private readonly chatService: ChatService
   ) {}
 
   onModuleInit() {
@@ -35,57 +43,64 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect, On
       const token = client.handshake.auth.token || client.handshake.headers['authorization'];
       
       if (!token) {
-        console.error('Disconnected: Token not provided');
-        client.disconnect();
-        return;
+        client.emit('error', { message: 'Token not provided' });
+        return client.disconnect();
       }
 
       const cleanToken = token.replace('Bearer ', '').trim();
-
       const response = await firstValueFrom(this.authService.Validate({ token: cleanToken }));
 
       if (response.status !== 200) {
-        console.error(`Disconnected: Invalid token. Status: ${response.status}, Error: ${response.error}`);
-        client.disconnect();
-        return;
+        client.emit('error', { message: 'Invalid token' });
+        return client.disconnect();
       }
 
-      client.data.userId = response.userId;
-      console.log(`User successfully connected: ${response.userId}`);
+      client.data.userId = String(response.userId);
+      console.log(`User connected: ${client.data.userId}`);
     } catch (error) {
-      console.error('Disconnected due to critical error:', error);
+      client.emit('error', { message: 'Auth service unavailable' });
       client.disconnect();
     }
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`User disconnected: ${client.id}`);
+    console.log(`User disconnected: ${client.data?.userId || client.id}`);
   }
 
+  @UsePipes(new ValidationPipe())
+  @SubscribeMessage('subscribeToRoom')
+  async handleSubscribeToRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinRoomDto) {
+    await this.chatService.addUserToRoom(payload.roomId, client.data.userId);
+    client.join(payload.roomId);
+    client.emit('roomJoined', { roomId: payload.roomId });
+  }
+
+  @UsePipes(new ValidationPipe())
   @SubscribeMessage('joinRoom')
-  handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody('roomId') roomId: string) {
-    client.join(String(roomId));
-    console.log(`User ${client.data.userId} joined room ${roomId}`);
+  async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinRoomDto) {
+    const hasAccess = await this.chatService.checkRoomAccess(payload.roomId, client.data.userId);
+    if (!hasAccess) return client.emit('error', { message: 'Access denied' });
+
+    client.join(payload.roomId);
   }
 
+  @UsePipes(new ValidationPipe())
   @SubscribeMessage('sendMessage')
-  async handleMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { roomId: string; content: string }
-  ) {
-    const message = {
-      room_id: String(payload.roomId),
-      created_at: new Date(),
-      message_id: types.TimeUuid.now(),
-      sender_id: String(client.data.userId),
-      content: payload.content,
-    };
+  async handleMessage(@ConnectedSocket() client: Socket, @MessageBody() payload: SendMessageDto) {
+    const hasAccess = await this.chatService.checkRoomAccess(payload.roomId, client.data.userId);
+    if (!hasAccess) return client.emit('error', { message: 'Access denied' });
 
-    const mapper = this.cassandraService.getMapper();
-    await mapper.forModel('Message').insert(message);
+    const message = await this.chatService.saveMessage(payload.roomId, client.data.userId, payload.content);
+    this.server.to(payload.roomId).emit('newMessage', message);
+  }
 
-    console.log(`User ${client.data.userId} sent a message to room ${payload.roomId}`);
+  @UsePipes(new ValidationPipe())
+  @SubscribeMessage('getMessages')
+  async handleGetMessages(@ConnectedSocket() client: Socket, @MessageBody() payload: GetMessagesDto) {
+    const hasAccess = await this.chatService.checkRoomAccess(payload.roomId, client.data.userId);
+    if (!hasAccess) return client.emit('error', { message: 'Access denied' });
     
-    this.server.to(String(payload.roomId)).emit('newMessage', message);
+    const data = await this.chatService.getRoomMessages(payload.roomId, payload.pageState);
+    client.emit('messagesList', data);
   }
 }
