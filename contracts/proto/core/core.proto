@@ -1,0 +1,26 @@
+syntax = "proto3";
+package core;
+
+service CoreService {
+  rpc CreateServer (CreateServerRequest) returns (ServerResponse);
+  rpc CheckPermission (PermissionRequest) returns (PermissionResponse);
+}
+
+message CreateServerRequest {
+  string name = 1;
+  string ownerId = 2;
+}
+
+message ServerResponse {
+  string id = 1;
+  string name = 2;
+}
+
+message PermissionRequest {
+  string userId = 1;
+  string channelId = 2;
+}
+
+message PermissionResponse {
+  bool hasAccess = 1;
+}

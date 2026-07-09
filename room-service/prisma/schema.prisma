@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+  engineType = "library"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Server {
+  id        String    @id @default(uuid())
+  name      String
+  ownerId   String
+  channels  Channel[]
+  createdAt DateTime  @default(now())
+}
+
+model Channel {
+  id        String    @id @default(uuid())
+  name      String
+  serverId  String
+  server    Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+}

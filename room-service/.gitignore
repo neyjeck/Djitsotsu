@@ -1,0 +1,14 @@
+node_modules/
+src/generated/
+dist/
+artifacts/
+coverage/
+*.log
+.env
+.env.test
+.env.production
+.DS_Store
+Thumbs.db
+/generated/prisma
+
+/generated/prisma
